@@ -1,6 +1,6 @@
 {
   "name": "@ltxhhz/koishi-plugin-skia-canvas",
-  "description": "",
+  "description": "提供 koishi skia 服务",
   "version": "0.0.1",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -9,13 +9,46 @@
     "dist"
   ],
   "license": "MIT",
+  "author": {
+    "name": "ltxhhz",
+    "url": "https://github.com/ltxhhz"
+  },
+  "homepage": "https://github.com/ltxhhz/koishi-plugin-skia-canvas",
+  "readme": "https://github.com/ltxhhz/koishi-plugin-skia-canvas#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ltxhhz/koishi-plugin-skia-canvas.git"
+  },
   "scripts": {},
   "keywords": [
     "chatbot",
     "koishi",
-    "plugin"
+    "plugin",
+    "skia-canvas"
   ],
   "peerDependencies": {
-    "koishi": "4.14"
+    "koishi": "^4.14"
+  },
+  "dependencies": {
+    "@ltxhhz/skia-canvas-for-koishi": "^1.0.2",
+    "superagent": "^8.1.2",
+    "tar": "^6.2.0"
+  },
+  "devDependencies": {
+    "@types/tar": "^6.1.5"
+  },
+  "koishi": {
+    "description": {
+      "en": "Provides skia services based on [skia-canvas](https://github.com/samizdatco/skia-canvas)",
+      "zh": "提供基于 [skia-canvas](https://github.com/samizdatco/skia-canvas) 的 skia 服务"
+    },
+    "services": {
+      "implements": [
+        "skia"
+      ]
+    },
+    "locales": [
+      "zh"
+    ]
   }
 }
