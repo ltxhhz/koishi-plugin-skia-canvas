@@ -1,7 +1,7 @@
 {
   "name": "@ltxhhz/koishi-plugin-skia-canvas",
   "description": "提供 koishi skia 服务",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
   "files": [
@@ -27,15 +27,14 @@
     "skia-canvas"
   ],
   "peerDependencies": {
-    "koishi": "^4.14"
+    "koishi": "^4.15"
   },
   "dependencies": {
     "@ltxhhz/skia-canvas-for-koishi": "^1.0.2",
-    "superagent": "^8.1.2",
     "tar": "^6.2.0"
   },
   "devDependencies": {
-    "@types/tar": "^6.1.5"
+    "@types/tar": "^6.1.6"
   },
   "koishi": {
     "description": {

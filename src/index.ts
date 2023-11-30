@@ -4,29 +4,32 @@ import fs from 'fs'
 import path from 'path'
 import zlib from 'zlib'
 import tar from 'tar'
-import superagent from 'superagent'
 export type * from '@ltxhhz/skia-canvas-for-koishi'
 
+import type {} from 'koishi-plugin-downloads'
+
 export const name = 'skia-canvas'
+export const filter = false
 
 export interface Config {
   nodeBinaryPath?: string
+  timeout?: number
 }
 
-export const Config: Schema<Config> = Schema.intersect([
-  Schema.object({
-    nodeBinaryPath: Schema.path({
-      filters: ['directory'],
-      allowCreate: true
-    })
-      .description('Canvas binary file storage directory')
-      .default('data/assets/canvas')
-  }).i18n({
-    zh: {
-      nodeBinaryPath: 'Canvas 文件存放目录'
-    }
+export const Config: Schema<Config> = Schema.object({
+  nodeBinaryPath: Schema.path({
+    filters: ['directory'],
+    allowCreate: true
   })
-])
+    .description('Canvas binary file storage directory')
+    .default('data/assets/canvas'),
+  timeout: Schema.number().default(60).description('Download timeout (ms)')
+}).i18n({
+  zh: {
+    nodeBinaryPath: 'Canvas 文件存放目录',
+    timeout: '下载超时时间(ms)'
+  }
+})
 
 const skiaVersion = '1.0.1',
   napiLabel = 'napi-v6'
@@ -53,16 +56,20 @@ export class Skia extends Service {
   DOMRect: typeof skia.DOMRect
   Window: typeof skia.Window
 
-  logger: Logger
+  readonly config: Required<Config>
 
-  constructor(ctx: Context, public config: Config) {
+  constructor(ctx: Context, config: Config) {
     super(ctx, 'skia')
     this.logger = ctx.logger('skia')
+    this.config = {
+      nodeBinaryPath: 'data/assets/canvas',
+      timeout: 6e4,
+      ...config
+    }
   }
 
   protected override async start() {
-    const { nodeBinaryPath = 'data/assets/canvas' } = this.config
-    const nodeDir = path.resolve(this.ctx.baseDir, nodeBinaryPath)
+    const nodeDir = path.resolve(this.ctx.baseDir, this.config.nodeBinaryPath)
 
     fs.mkdirSync(nodeDir, { recursive: true })
     const s = await this.getNativeBinding(nodeDir)
@@ -110,6 +117,7 @@ export class Skia extends Service {
       if (!localFileExisted) {
         this.logger.info('初始化 skia 服务')
         await this.handleFile(nodeName, nodePath, nodeDir)
+        this.logger.info('初始化 skia 完成')
       }
       nativeBinding = require('@ltxhhz/skia-canvas-for-koishi')
     } catch (e) {
@@ -125,41 +133,28 @@ export class Skia extends Service {
       fs.rmSync(tmpd, { recursive: true, force: true })
       fs.mkdirSync(tmpd)
       const tmp = path.join(tmpd, fileName + '.tar.gz')
-      superagent
-        .get(`https://registry.npmmirror.com/-/binary/skia-canvas/v${skiaVersion}/${fileName}.tar.gz`)
-        .on('progress', e => {
-          this.logger.info(e.direction + ' 已完成 ' + e.percent + '%')
-        })
-        .on('error', err => {
-          this.logger.error('下载文件时出错：', err)
-          reject(err)
-        })
-        .pipe(fs.createWriteStream(tmp))
-        .on('finish', () => {
-          this.logger.info(`文件已成功下载到 ${tmp}，开始解压`)
-          const unzip = zlib.createGunzip()
+      this.downloadFile(`https://registry.npmmirror.com/-/binary/skia-canvas/v${skiaVersion}/${fileName}.tar.gz`, tmp).then(() => {
+        this.logger.info(`文件已成功下载到 ${tmp}，开始解压`)
+        const unzip = zlib.createGunzip()
 
-          const tarExtract = tar.x({
-            cwd: tmpd
+        const tarExtract = tar.x({
+          cwd: tmpd
+        })
+        fs.createReadStream(tmp)
+          .pipe(unzip)
+          .pipe(tarExtract)
+          .on('finish', () => {
+            this.logger.info('文件解压完成。')
+            fs.renameSync(path.join(tmpd, 'v6/index.node'), filePath)
+            fs.rmSync(tmpd, { recursive: true, force: true })
+            this.logger.info('文件已删除。')
+            resolve()
           })
-          fs.createReadStream(tmp)
-            .pipe(unzip)
-            .pipe(tarExtract)
-            .on('finish', () => {
-              this.logger.info('文件解压完成。')
-              fs.renameSync(path.join(tmpd, 'v6/index.node'), filePath)
-              fs.rmSync(tmpd, { recursive: true, force: true })
-              resolve()
-            })
-            .on('error', err => {
-              this.logger.error('解压文件时出错：', err)
-              reject(err)
-            })
-        })
-        .on('error', err => {
-          this.logger.error('下载文件时出错：', err)
-          reject(err)
-        })
+          .on('error', err => {
+            this.logger.error('解压文件时出错：', err)
+            reject(err)
+          })
+      })
     })
   }
 
@@ -180,9 +175,31 @@ export class Skia extends Service {
       return !glibcVersionRuntime
     }
   }
+
+  private async downloadFile(url: string, path: string) {
+    const response = await this.ctx.http.get(url, {
+      responseType: 'stream',
+      timeout: this.config.timeout,
+      onDownloadProgress: event => {
+        this.logger.info(`下载进度：${Math.round((event.loaded / event.total) * 100)}%`)
+      }
+    })
+    const file = fs.createWriteStream(path)
+    response.pipe(file)
+    return new Promise<void>((resolve, reject) => {
+      file.on('finish', () => {
+        file.close()
+        resolve()
+      })
+      file.on('error', err => {
+        file.close()
+        fs.unlink(path, () => {})
+        reject(err)
+      })
+    })
+  }
 }
 
 export function apply(ctx: Context) {
   ctx.plugin(Skia)
 }
-
