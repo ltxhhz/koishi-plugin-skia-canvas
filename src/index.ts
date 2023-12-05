@@ -6,7 +6,7 @@ import zlib from 'zlib'
 import tar from 'tar'
 export type * from '@ltxhhz/skia-canvas-for-koishi'
 
-import type {} from 'koishi-plugin-downloads'
+// import type {} from 'koishi-plugin-downloads'
 
 export const name = 'skia-canvas'
 export const filter = false
@@ -129,7 +129,7 @@ export class Skia extends Service {
 
   private async handleFile(fileName: string, filePath: string, nodeDir: string) {
     return new Promise<void>((resolve, reject) => {
-      const tmpd = path.join(nodeDir, fileName)
+      const tmpd = path.join(nodeDir, fileName) //todo 改为系统 temp 目录
       fs.rmSync(tmpd, { recursive: true, force: true })
       fs.mkdirSync(tmpd)
       const tmp = path.join(tmpd, fileName + '.tar.gz')
@@ -146,9 +146,16 @@ export class Skia extends Service {
           .on('finish', () => {
             this.logger.info('文件解压完成。')
             fs.renameSync(path.join(tmpd, 'v6/index.node'), filePath)
-            fs.rmSync(tmpd, { recursive: true, force: true })
-            this.logger.info('文件已删除。')
-            resolve()
+            setTimeout(() => {
+              //ENOTEMPTY: directory not empty
+              try {
+                fs.rmSync(tmpd, { recursive: true, force: true })
+                this.logger.info('文件已删除。')
+              } catch (error) {
+                this.logger.info('路径删除失败，可手动删除。', tmpd)
+              }
+              resolve()
+            }, 300)
           })
           .on('error', err => {
             this.logger.error('解压文件时出错：', err)
@@ -203,3 +210,4 @@ export class Skia extends Service {
 export function apply(ctx: Context) {
   ctx.plugin(Skia)
 }
+
