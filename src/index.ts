@@ -94,7 +94,7 @@ export class Skia extends Service {
         arm64: `darwin-arm64-${napiLabel}-unknown`
       },
       linux: {
-        x64: `linux-x64-${this.isMusl() ? 'musl' : 'glibc'}`,
+        x64: `linux-x64-${napiLabel}-${this.isMusl() ? 'musl' : 'glibc'}`,
         arm64: this.isMusl() ? `linux-arm64-${napiLabel}-musl` : '',
         arm: `linux-arm-${napiLabel}-glibc`
       }
