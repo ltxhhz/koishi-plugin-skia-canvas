@@ -1,5 +1,5 @@
 {
-  "name": "@lgcnpm/koishi-plugin-skia-canvas",
+  "name": "@ltxhhz/koishi-plugin-skia-canvas",
   "description": "提供 koishi skia 服务",
   "version": "0.0.5",
   "main": "lib/index.js",
