@@ -1,7 +1,7 @@
 {
-  "name": "@ltxhhz/koishi-plugin-skia-canvas",
+  "name": "@lgcnpm/koishi-plugin-skia-canvas",
   "description": "提供 koishi skia 服务",
-  "version": "0.0.4",
+  "version": "0.0.5",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
   "files": [
@@ -13,13 +13,12 @@
     "name": "ltxhhz",
     "url": "https://github.com/ltxhhz"
   },
-  "homepage": "https://github.com/ltxhhz/koishi-plugin-skia-canvas",
-  "readme": "https://github.com/ltxhhz/koishi-plugin-skia-canvas#readme",
+  "homepage": "https://github.com/lgc2333/koishi-plugin-skia-canvas",
+  "readme": "https://github.com/lgc2333/koishi-plugin-skia-canvas#readme",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/ltxhhz/koishi-plugin-skia-canvas.git"
+    "url": "git+https://github.com/lgc2333/koishi-plugin-skia-canvas.git"
   },
-  "scripts": {},
   "keywords": [
     "chatbot",
     "koishi",
@@ -27,14 +26,14 @@
     "skia-canvas"
   ],
   "peerDependencies": {
-    "koishi": "^4.15"
+    "koishi": "^4.17.6"
   },
   "dependencies": {
     "@ltxhhz/skia-canvas-for-koishi": "^1.0.2",
-    "tar": "^6.2.0"
+    "tar": "^7.1.0"
   },
   "devDependencies": {
-    "@types/tar": "^6.1.6"
+    "@types/tar": "^6.1.13"
   },
   "koishi": {
     "description": {

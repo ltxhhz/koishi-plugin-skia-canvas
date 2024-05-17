@@ -16,8 +16,8 @@ const { Canvas, loadImage } = ctx.skia //使用其他模块
 
 ## 用例
 
-* [ltxhhz/koishi-plugin-imagify-skia: koishi 插件，使用 skia-canvas 的图形化输出，性能优于 puppeteer (github.com)](https://github.com/ltxhhz/koishi-plugin-imagify-skia)
-* [ltxhhz/koishi-plugin-give-you-some-color: 给你点颜色看看 | 发送颜色图片 (github.com)](https://github.com/ltxhhz/koishi-plugin-give-you-some-color)
+- [ltxhhz/koishi-plugin-imagify-skia: koishi 插件，使用 skia-canvas 的图形化输出，性能优于 puppeteer (github.com)](https://github.com/ltxhhz/koishi-plugin-imagify-skia)
+- [ltxhhz/koishi-plugin-give-you-some-color: 给你点颜色看看 | 发送颜色图片 (github.com)](https://github.com/ltxhhz/koishi-plugin-give-you-some-color)
 
 ## 区别
 
