@@ -1,12 +1,12 @@
-import { Context, Logger, Schema, Service } from 'koishi'
+import { Context, Schema, Service } from 'koishi'
 import type skia from '@ltxhhz/skia-canvas-for-koishi'
 import fs from 'fs'
 import path from 'path'
 import zlib from 'zlib'
 import tar from 'tar'
-export type * from '@ltxhhz/skia-canvas-for-koishi'
+import { Stream } from 'stream'
 
-// import type {} from 'koishi-plugin-downloads'
+export type * from '@ltxhhz/skia-canvas-for-koishi'
 
 export const name = 'skia-canvas'
 export const filter = false
@@ -56,7 +56,7 @@ export class Skia extends Service {
   DOMRect: typeof skia.DOMRect
   Window: typeof skia.Window
 
-  readonly config: Required<Config>
+  declare readonly config: Required<Config>
 
   constructor(ctx: Context, config: Config) {
     super(ctx, 'skia')
@@ -83,7 +83,6 @@ export class Skia extends Service {
   private async getNativeBinding(nodeDir: string) {
     const { platform, arch } = process
     let nativeBinding: any
-    let nodeName: string
 
     const platformArchMap = {
       win32: {
@@ -106,7 +105,7 @@ export class Skia extends Service {
       throw new Error(`Unsupported architecture on ${platform}: ${arch}`)
     }
 
-    nodeName = platformArchMap[platform][arch]
+    const nodeName = platformArchMap[platform][arch]
 
     const nodeFile = nodeName + '.node'
     const nodePath = path.join(nodeDir, 'package', nodeFile)
@@ -115,13 +114,13 @@ export class Skia extends Service {
     global.__SKIA_DOWNLOAD_PATH = nodePath
     try {
       if (!localFileExisted) {
-        this.logger.info('初始化 skia 服务')
+        this.ctx.logger.info('初始化 skia 服务')
         await this.handleFile(nodeName, nodePath, nodeDir)
-        this.logger.info('初始化 skia 完成')
+        this.ctx.logger.info('初始化 skia 完成')
       }
       nativeBinding = require('@ltxhhz/skia-canvas-for-koishi')
     } catch (e) {
-      this.logger.error('An error was encountered while processing the binary', e)
+      this.ctx.logger.error('An error was encountered while processing the binary', e)
       throw new Error(`Failed to use ${nodePath} on ${platform}-${arch}`)
     }
     return nativeBinding
@@ -129,12 +128,12 @@ export class Skia extends Service {
 
   private async handleFile(fileName: string, filePath: string, nodeDir: string) {
     return new Promise<void>((resolve, reject) => {
-      const tmpd = path.join(nodeDir, fileName) //todo 改为系统 temp 目录
+      const tmpd = path.join(nodeDir, fileName) // todo 改为系统 temp 目录
       fs.rmSync(tmpd, { recursive: true, force: true })
       fs.mkdirSync(tmpd)
       const tmp = path.join(tmpd, fileName + '.tar.gz')
       this.downloadFile(`https://registry.npmmirror.com/-/binary/skia-canvas/v${skiaVersion}/${fileName}.tar.gz`, tmp).then(() => {
-        this.logger.info(`文件已成功下载到 ${tmp}，开始解压`)
+        this.ctx.logger.info(`文件已成功下载到 ${tmp}，开始解压`)
         const unzip = zlib.createGunzip()
 
         const tarExtract = tar.x({
@@ -144,21 +143,21 @@ export class Skia extends Service {
           .pipe(unzip)
           .pipe(tarExtract)
           .on('finish', () => {
-            this.logger.info('文件解压完成。')
+            this.ctx.logger.info('文件解压完成。')
             fs.renameSync(path.join(tmpd, 'v6/index.node'), filePath)
             setTimeout(() => {
-              //ENOTEMPTY: directory not empty
+              // ENOTEMPTY: directory not empty
               try {
                 fs.rmSync(tmpd, { recursive: true, force: true })
-                this.logger.info('文件已删除。')
+                this.ctx.logger.info('文件已删除。')
               } catch (error) {
-                this.logger.info('路径删除失败，可手动删除。', tmpd)
+                this.ctx.logger.info('路径删除失败，可手动删除。', tmpd)
               }
               resolve()
             }, 300)
           })
           .on('error', err => {
-            this.logger.error('解压文件时出错：', err)
+            this.ctx.logger.error('解压文件时出错：', err)
             reject(err)
           })
       })
@@ -186,28 +185,19 @@ export class Skia extends Service {
   private async downloadFile(url: string, path: string) {
     const response = await this.ctx.http.get(url, {
       responseType: 'stream',
-      timeout: this.config.timeout,
-      onDownloadProgress: event => {
-        this.logger.info(`下载进度：${Math.round((event.loaded / event.total) * 100)}%`)
-      }
+      timeout: this.config.timeout
+      // onDownloadProgress: (event) => {
+      //   this.ctx.logger.info(
+      //     `下载进度：${Math.round((event.loaded / event.total) * 100)}%`,
+      //   )
+      // },
     })
-    const file = fs.createWriteStream(path)
-    response.pipe(file)
-    return new Promise<void>((resolve, reject) => {
-      file.on('finish', () => {
-        file.close()
-        resolve()
-      })
-      file.on('error', err => {
-        file.close()
-        fs.unlink(path, () => {})
-        reject(err)
-      })
-    })
+    const file = Stream.Writable.toWeb(fs.createWriteStream(path))
+    await response.pipeTo(file)
+    // this.ctx.logger.info(`${url} download complete`)
   }
 }
 
 export function apply(ctx: Context) {
   ctx.plugin(Skia)
 }
-
