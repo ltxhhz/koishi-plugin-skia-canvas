@@ -1,12 +1,12 @@
 import fs from 'fs'
 import path from 'path'
+import { Stream } from 'stream'
 import zlib from 'zlib'
 
 import { Context, Schema, Service } from 'koishi'
 import * as tar from 'tar'
 
 import type skia from '@ltxhhz/skia-canvas-for-koishi'
-import { Stream } from 'stream'
 
 export type * from '@ltxhhz/skia-canvas-for-koishi'
 
