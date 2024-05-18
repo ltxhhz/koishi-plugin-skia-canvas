@@ -1,6 +1,7 @@
 import { Context, Schema, Service } from 'koishi'
 import type skia from '@ltxhhz/skia-canvas-for-koishi'
 import fs from 'fs'
+import os from 'os'
 import path from 'path'
 import zlib from 'zlib'
 import tar from 'tar'
@@ -23,7 +24,7 @@ export const Config: Schema<Config> = Schema.object({
   })
     .description('Canvas binary file storage directory')
     .default('data/assets/canvas'),
-  timeout: Schema.number().default(60).description('Download timeout (ms)')
+  timeout: Schema.number().default(6e4).description('Download timeout (ms)')
 }).i18n({
   zh: {
     nodeBinaryPath: 'Canvas 文件存放目录',
@@ -60,7 +61,7 @@ export class Skia extends Service {
 
   constructor(ctx: Context, config: Config) {
     super(ctx, 'skia')
-    this.logger = ctx.logger('skia')
+    // this.logger = ctx.logger('skia')
     this.config = {
       nodeBinaryPath: 'data/assets/canvas',
       timeout: 6e4,
@@ -115,7 +116,7 @@ export class Skia extends Service {
     try {
       if (!localFileExisted) {
         this.ctx.logger.info('初始化 skia 服务')
-        await this.handleFile(nodeName, nodePath, nodeDir)
+        await this.handleFile(nodeName, nodePath)
         this.ctx.logger.info('初始化 skia 完成')
       }
       nativeBinding = require('@ltxhhz/skia-canvas-for-koishi')
@@ -126,9 +127,9 @@ export class Skia extends Service {
     return nativeBinding
   }
 
-  private async handleFile(fileName: string, filePath: string, nodeDir: string) {
+  private async handleFile(fileName: string, filePath: string) {
     return new Promise<void>((resolve, reject) => {
-      const tmpd = path.join(nodeDir, fileName) // todo 改为系统 temp 目录
+      const tmpd = path.join(os.tmpdir(), fileName)
       fs.rmSync(tmpd, { recursive: true, force: true })
       fs.mkdirSync(tmpd)
       const tmp = path.join(tmpd, fileName + '.tar.gz')
