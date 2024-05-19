@@ -4,7 +4,7 @@ import fs from 'fs'
 import os from 'os'
 import path from 'path'
 import zlib from 'zlib'
-import tar from 'tar'
+import * as tar from 'tar'
 import { Stream } from 'stream'
 
 export type * from '@ltxhhz/skia-canvas-for-koishi'
