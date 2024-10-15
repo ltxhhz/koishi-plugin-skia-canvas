@@ -37,8 +37,8 @@
   },
   "koishi": {
     "description": {
-      "en": "Provides skia services based on [skia-canvas](https://github.com/samizdatco/skia-canvas)",
-      "zh": "提供基于 [skia-canvas](https://github.com/samizdatco/skia-canvas) 的 skia 服务"
+      "en": "Provides skia services based on [skia-canvas](https://github.com/samizdatco/skia-canvas)@1.0.2",
+      "zh": "提供基于 [skia-canvas](https://github.com/samizdatco/skia-canvas)@1.0.2 的 skia 服务"
     },
     "services": {
       "implements": [
