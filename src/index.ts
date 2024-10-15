@@ -32,8 +32,8 @@ export const Config: Schema<Config> = Schema.object({
   }
 })
 
-const skiaVersion = '1.0.1',
-  napiLabel = 'napi-v6'
+const skiaVersion = '1.0.2'
+// napiLabel = ''
 
 declare module 'koishi' {
   interface Context {
@@ -87,16 +87,16 @@ export class Skia extends Service {
 
     const platformArchMap = {
       win32: {
-        x64: `win32-x64-${napiLabel}-unknown`
+        x64: `win32-x64-unknown`
       },
       darwin: {
-        x64: `darwin-x64-${napiLabel}-unknown`,
-        arm64: `darwin-arm64-${napiLabel}-unknown`
+        x64: `darwin-x64-unknown`,
+        arm64: `darwin-arm64-unknown`
       },
       linux: {
-        x64: `linux-x64-${napiLabel}-${this.isMusl() ? 'musl' : 'glibc'}`,
-        arm64: this.isMusl() ? `linux-arm64-${napiLabel}-musl` : '',
-        arm: `linux-arm-${napiLabel}-glibc`
+        x64: `linux-x64-${this.isMusl() ? 'musl' : 'glibc'}`,
+        arm64: `linux-x64-${this.isMusl() ? 'musl' : 'glibc'}`
+        // arm: `linux-arm-glibc`
       }
     }
     if (!platformArchMap[platform]) {
@@ -108,18 +108,38 @@ export class Skia extends Service {
 
     const nodeName = platformArchMap[platform][arch]
 
-    const nodeFile = nodeName + '.node'
+    const nodeFile = skiaVersion + '_' + nodeName + '.node'
     const nodePath = path.join(nodeDir, 'package', nodeFile)
     fs.mkdirSync(path.join(nodeDir, 'package'), { recursive: true })
     const localFileExisted = fs.existsSync(nodePath)
     global.__SKIA_DOWNLOAD_PATH = nodePath
     try {
+      this.ctx.logger.info('初始化 skia 服务')
       if (!localFileExisted) {
-        this.ctx.logger.info('初始化 skia 服务')
+        this.ctx.logger.info(`${skiaVersion} 版本二进制文件不存在，开始下载`)
+        const p = path.join(nodeDir, 'package')
+        const files = fs.readdirSync(p)
+        let unk = false
+        files.forEach(fn => {
+          const v = fn.match(/^\d+\.\d+\.\d+_/)
+          if (v) {
+            try {
+              fs.rmSync(path.join(p, fn), { recursive: true, force: true })
+              this.ctx.logger.info('删除旧文件', fn)
+            } catch (error) {
+              this.ctx.logger.warn('删除旧文件失败', fn, error)
+            }
+          } else {
+            unk = true
+          }
+        })
+        if (unk) {
+          this.ctx.logger.warn('目录下似乎有旧版本文件，请检查并删除', p)
+        }
         await this.handleFile(nodeName, nodePath)
-        this.ctx.logger.info('初始化 skia 完成')
       }
       nativeBinding = require('@ltxhhz/skia-canvas-for-koishi')
+      this.ctx.logger.info('初始化 skia 完成')
     } catch (e) {
       this.ctx.logger.error('An error was encountered while processing the binary', e)
       throw new Error(`Failed to use ${nodePath} on ${platform}-${arch}`)
@@ -145,14 +165,14 @@ export class Skia extends Service {
           .pipe(tarExtract)
           .on('finish', () => {
             this.ctx.logger.info('文件解压完成。')
-            fs.renameSync(path.join(tmpd, 'v6/index.node'), filePath)
+            fs.cpSync(path.join(tmpd, 'v6/index.node'), filePath)
             setTimeout(() => {
               // ENOTEMPTY: directory not empty
               try {
                 fs.rmSync(tmpd, { recursive: true, force: true })
                 this.ctx.logger.info('文件已删除。')
               } catch (error) {
-                this.ctx.logger.info('路径删除失败，可手动删除。', tmpd)
+                this.ctx.logger.info('路径删除失败，可手动删除。', tmpd, error)
               }
               resolve()
             }, 300)
