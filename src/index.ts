@@ -11,6 +11,7 @@ export type * from '@ltxhhz/skia-canvas-for-koishi'
 
 export const name = 'skia-canvas'
 export const filter = false
+export const inject = ['http']
 
 export interface Config {
   nodeBinaryPath?: string
