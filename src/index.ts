@@ -1,6 +1,7 @@
 import { Context, Schema, Service } from 'koishi'
 import type skia from '@ltxhhz/skia-canvas-for-koishi'
 import fs from 'fs'
+import fsp from 'fs/promises'
 import os from 'os'
 import path from 'path'
 import zlib from 'zlib'
@@ -12,26 +13,6 @@ export type * from '@ltxhhz/skia-canvas-for-koishi'
 export const name = 'skia-canvas'
 export const filter = false
 export const inject = ['http']
-
-export interface Config {
-  nodeBinaryPath?: string
-  timeout?: number
-}
-
-export const Config: Schema<Config> = Schema.object({
-  nodeBinaryPath: Schema.path({
-    filters: ['directory'],
-    allowCreate: true
-  })
-    .description('Canvas binary file storage directory')
-    .default('data/assets/canvas'),
-  timeout: Schema.number().default(6e4).description('Download timeout (ms)')
-}).i18n({
-  zh: {
-    nodeBinaryPath: 'Canvas 文件存放目录',
-    timeout: '下载超时时间(ms)'
-  }
-})
 
 const skiaVersion = '1.0.2'
 // napiLabel = ''
@@ -58,19 +39,23 @@ export class Skia extends Service {
   DOMRect: typeof skia.DOMRect
   Window: typeof skia.Window
 
-  declare readonly config: Required<Config>
+  declare readonly config: Required<Skia.Config>
 
-  constructor(ctx: Context, config: Config) {
+  constructor(ctx: Context, config: Skia.Config) {
     super(ctx, 'skia')
     // this.logger = ctx.logger('skia')
+    this.ctx.logger.debug('输入配置：', config)
     this.config = {
       nodeBinaryPath: 'data/assets/canvas',
+      fontsPath: 'data/assets/fonts',
+      fontAliases: {},
       timeout: 6e4,
       ...config
     }
+    // this.getVersions(this.ctx)
   }
 
-  protected override async start() {
+  async start() {
     const nodeDir = path.resolve(this.ctx.baseDir, this.config.nodeBinaryPath)
 
     fs.mkdirSync(nodeDir, { recursive: true })
@@ -79,6 +64,29 @@ export class Skia extends Service {
       if (Object.hasOwn(s, key)) {
         this[key] = s[key]
       }
+    }
+    const p = path.resolve(this.ctx.baseDir, this.config.fontsPath)
+    fs.mkdirSync(p, { recursive: true })
+    let fonts = await getAllFiles(p)
+    if (Object.keys(this.config.fontAliases).length > 0) {
+      for (const alias in this.config.fontAliases) {
+        if (Object.hasOwn(this.config.fontAliases, alias)) {
+          const font = this.config.fontAliases[alias]
+          const fontPath = Array.isArray(font) ? font.map(e => path.resolve(this.ctx.baseDir, this.config.fontsPath, e)) : path.resolve(this.ctx.baseDir, this.config.fontsPath, font)
+          try {
+            this.ctx.logger.info('字体被加载', this.FontLibrary.use(alias, fontPath))
+            const fontFilenames = Array.isArray(font) ? font.map(e => path.basename(e)) : [path.basename(font)]
+            fonts = fonts.filter(e => !fontFilenames.includes(e)) // 不重复加载
+          } catch (error) {
+            this.ctx.logger.error('字体加载失败', error)
+          }
+        }
+      }
+    }
+    try {
+      this.ctx.logger.info('字体被加载', this.FontLibrary.use(fonts))
+    } catch (error) {
+      this.ctx.logger.error('字体加载失败', error)
     }
   }
 
@@ -96,7 +104,7 @@ export class Skia extends Service {
       },
       linux: {
         x64: `linux-x64-${this.isMusl() ? 'musl' : 'glibc'}`,
-        arm64: `linux-x64-${this.isMusl() ? 'musl' : 'glibc'}`
+        arm64: `linux-arm64-${this.isMusl() ? 'musl' : 'glibc'}`
         // arm: `linux-arm-glibc`
       }
     }
@@ -116,27 +124,29 @@ export class Skia extends Service {
     global.__SKIA_DOWNLOAD_PATH = nodePath
     try {
       this.ctx.logger.info('初始化 skia 服务')
+      this.ctx.logger.debug(`文件 ${nodePath} 是否存在: ${localFileExisted}`)
       if (!localFileExisted) {
         this.ctx.logger.info(`${skiaVersion} 版本二进制文件不存在，开始下载`)
         const p = path.join(nodeDir, 'package')
         const files = fs.readdirSync(p)
         let unk = false
         files.forEach(fn => {
-          const v = fn.match(/^\d+\.\d+\.\d+_/)
-          if (v) {
-            try {
-              fs.rmSync(path.join(p, fn), { recursive: true, force: true })
-              this.ctx.logger.info('删除旧文件', fn)
-            } catch (error) {
-              this.ctx.logger.warn('删除旧文件失败', fn, error)
-            }
-          } else {
-            unk = true
-          }
+          this.ctx.logger.info(`其他版本文件可删除 ${fn}`)
+          // const v = fn.match(/^\d+\.\d+\.\d+_/)
+          // if (v) {
+          // try {
+          //   fs.rmSync(path.join(p, fn), { recursive: true, force: true })
+          //   this.ctx.logger.info('删除旧文件', fn)
+          // } catch (error) {
+          //   this.ctx.logger.warn('删除旧文件失败', fn, error)
+          // }
+          // } else {
+          //   unk = true
+          // }
         })
-        if (unk) {
-          this.ctx.logger.warn('目录下似乎有旧版本文件，请检查并删除', p)
-        }
+        // if (unk) {
+        //   this.ctx.logger.warn('目录下似乎有旧版本文件，请检查并删除', p)
+        // }
         await this.handleFile(nodeName, nodePath)
       }
       nativeBinding = require('@ltxhhz/skia-canvas-for-koishi')
@@ -166,7 +176,23 @@ export class Skia extends Service {
           .pipe(tarExtract)
           .on('finish', () => {
             this.ctx.logger.info('文件解压完成。')
-            fs.cpSync(path.join(tmpd, 'v6/index.node'), filePath)
+            const verDir = fs.readdirSync(tmpd).filter(e => fs.statSync(path.join(tmpd, e)).isDirectory())
+            if (verDir.length > 0) {
+              const ver = verDir.sort().reverse()[0]
+              const nodeFile = path.join(tmpd, ver, 'index.node')
+              this.ctx.logger.info(`正在复制 ${nodeFile} 文件到 ${filePath}`)
+              try {
+                fs.copyFileSync(nodeFile, filePath)
+              } catch (error) {
+                this.ctx.logger.error('复制文件失败', error)
+                reject(error)
+                return
+              }
+            } else {
+              this.ctx.logger.error('压缩包目录为空，请检查')
+              reject('压缩包目录为空，请检查')
+              return
+            }
             setTimeout(() => {
               // ENOTEMPTY: directory not empty
               try {
@@ -187,6 +213,9 @@ export class Skia extends Service {
   }
 
   private isMusl() {
+    if (os.platform() == 'win32') {
+      return false // Windows does not use musl
+    }
     // For Node 10
     if (!process.report || typeof process.report.getReport !== 'function') {
       try {
@@ -218,8 +247,83 @@ export class Skia extends Service {
     await response.pipeTo(file)
     // this.ctx.logger.info(`${url} download complete`)
   }
+
+  private async getVersions(ctx: Context): Promise<string[]> {
+    const versionFile = path.resolve(this.ctx.baseDir, this.config.nodeBinaryPath, 'versions.txt')
+    try {
+      const response = (
+        await ctx.http.get<Record<string, string>[]>('https://registry.npmmirror.com/-/binary/skia-canvas', {
+          timeout: this.config.timeout
+        })
+      ).map(e => e.name.replace(/^v|\/$/g, ''))
+      try {
+        fs.writeFileSync(versionFile, response.join('\n'))
+      } catch (error) {
+        this.ctx.logger.error(error)
+      }
+      this.ctx.logger.info('获取版本列表成功', response)
+      return response
+    } catch (error) {
+      if (fs.existsSync(versionFile)) {
+        return fs.readFileSync(versionFile, 'utf-8').split('\n')
+      } else {
+        return []
+      }
+    }
+  }
 }
 
-export function apply(ctx: Context) {
-  ctx.plugin(Skia)
+export namespace Skia {
+  export interface Config {
+    nodeBinaryPath?: string
+    fontsPath?: string
+    fontAliases?: { [alias: string]: string[] | string }
+    timeout?: number
+  }
+  export let Config: Schema<Config> = Schema.object({
+    nodeBinaryPath: Schema.path({
+      filters: ['directory'],
+      allowCreate: true
+    })
+      .description('Canvas binary file storage directory')
+      .default('data/assets/canvas'),
+    fontsPath: Schema.path({
+      filters: ['directory'],
+      allowCreate: true
+    })
+      .description('Fonts storage directory')
+      .default('data/assets/fonts'),
+    fontAliases: Schema.any()
+      .default({})
+      .description('Font aliases, relative to [fontsPath], type is `{ [alias: string]: string[]|string }`, e.g. `{ "sans": ["Noto Sans CJK SC", "path/to/Noto Sans CJK JP"] }`'),
+    timeout: Schema.number().default(6e4).description('Download timeout (ms)')
+  }).i18n({
+    zh: {
+      version: 'skia-canvas 版本，从版本列表中选择',
+      nodeBinaryPath: 'Canvas 文件存放目录',
+      fontsPath: '字体存放目录',
+      fontAliases: '字体别名，路径相对[字体存放目录]，类型为 `{ [alias: string]: string[]|string }`，例如 `{ "sans": ["Noto Sans CJK SC", "path/to/Noto Sans CJK JP"] }`',
+      timeout: '下载超时时间(ms)'
+    }
+  })
+}
+
+export default Skia
+
+async function getAllFiles(dir: string) {
+  let results: string[] = []
+
+  const files = await fsp.readdir(dir, { withFileTypes: true })
+
+  for (const file of files) {
+    const fullPath = path.join(dir, file.name)
+
+    if (file.isDirectory()) {
+      results = results.concat(await getAllFiles(fullPath))
+    } else {
+      results.push(fullPath)
+    }
+  }
+
+  return results
 }
